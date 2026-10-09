@@ -3,511 +3,297 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#6366f1" />
+  <meta name="theme-color" content="#4F46E5" />
   <meta name="description" content="Track your daily routines with ease" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Daily Routine" />
   <title>Daily Routine Checklist</title>
   <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    button { font-family: inherit; }
-    input { font-family: inherit; }
+    * { box-sizing: border-box; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
-  <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useRef } = React;
+  <script type="text/babel">
+    const { useState, useEffect } = React;
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-    const todayKey  = () => new Date().toDateString();
-    const weekLabel = () => {
-      const d = new Date();
-      const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay()+6)%7));
-      return mon.toISOString().slice(0,10);
-    };
-    const DAY_NAMES = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
-
-    const THEMES = {
-      indigo:  { name:"Indigo",  primary:"#6366f1", grad:"135deg,#6366f1,#8b5cf6", bg:"#eef2ff", card:"#fff" },
-      rose:    { name:"Rose",    primary:"#f43f5e", grad:"135deg,#f43f5e,#fb7185", bg:"#fff1f2", card:"#fff" },
-      emerald: { name:"Emerald", primary:"#10b981", grad:"135deg,#10b981,#34d399", bg:"#ecfdf5", card:"#fff" },
-      amber:   { name:"Amber",   primary:"#f59e0b", grad:"135deg,#f59e0b,#fbbf24", bg:"#fffbeb", card:"#fff" },
-      sky:     { name:"Sky",     primary:"#0ea5e9", grad:"135deg,#0ea5e9,#38bdf8", bg:"#f0f9ff", card:"#fff" },
-      dark:    { name:"Dark",    primary:"#818cf8", grad:"135deg,#6366f1,#a78bfa", bg:"#0f172a", card:"#1e293b" },
-    };
-
-    const CATEGORY_COLORS = [
-      "#f97316","#ec4899","#8b5cf6","#0ea5e9","#10b981","#f59e0b","#ef4444","#14b8a6"
-    ];
-    const CATEGORY_EMOJIS = ["🌅","☀️","🌙","💪","📚","🍽️","🧘","✨","🎯","🎨"];
-
-    function load(key, def) {
-      try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
-    }
-    function save(key, val) {
-      try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-    }
-
-    // ── icon components ─────────────────────────────────────────────────────
-    const Ico = ({ d, size=20, color="currentColor", stroke=2 }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-        stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
-        {[].concat(d).map((p,i) => <path key={i} d={p}/>)}
+    // ===== ICONS (Inline SVG) =====
+    const CheckCircleIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     );
-    const Check  = ({s,c}) => <Ico size={s||24} color={c} d="M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4 12 14.01l-3-3"/>;
-    const Circle = ({s})   => <Ico size={s||24} d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"/>;
-    const Plus   = ()      => <Ico d="M12 5v14 M5 12h14"/>;
-    const Trash  = ()      => <Ico size={16} d={["M3 6h18","M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6","M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"]}/>;
-    const Edit   = ()      => <Ico size={16} d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>;
-    const Bell   = ({on})  => <Ico size={20} color={on?"#f59e0b":"currentColor"}
-      d={on ? ["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0","M1 1l22 22"]
-           : ["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"]}/>;
-    const Stats  = ()      => <Ico d={["M18 20V10","M12 20V4","M6 20v-6"]}/>;
-    const Palette= ()      => <Ico d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z"/>;
-    const Moon   = ()      => <Ico d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>;
-    const Sun    = ()      => <Ico d={["M12 2v2","M12 20v2","M4.22 4.22l1.42 1.42","M18.36 18.36l1.42 1.42","M2 12h2","M20 12h2","M4.22 19.78l1.42-1.42","M18.36 5.64l1.42-1.42","M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12"]}/>;
-    const Home   = ()      => <Ico d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10"/>;
-    const Tag    = ()      => <Ico d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01"/>;
-    const Flame  = ()      => <Ico d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>;
+    const CircleIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    );
+    const PlusIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+      </svg>
+    );
+    const TrashIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+    );
+    const EditIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    );
+    const MoonIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      </svg>
+    );
+    const SunIcon = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+      </svg>
+    );
 
-    // ── MAIN APP ─────────────────────────────────────────────────────────────
+    // ===== MAIN APP =====
     function App() {
-      const [themeKey,  setThemeKey]  = useState(() => load("theme","indigo"));
-      const [categories,setCategories]= useState(() => load("cats",[
-        { id:"morning",   label:"Pagi",  emoji:"🌅", color:"#f97316" },
-        { id:"afternoon", label:"Siang", emoji:"☀️", color:"#f59e0b" },
-        { id:"evening",   label:"Malam", emoji:"🌙", color:"#6366f1" },
-      ]));
-      const [tasks,     setTasks]     = useState(() => load("tasks",{}));
-      const [done,      setDone]      = useState(() => load("done:"+todayKey(),{}));
-      const [streak,    setStreak]    = useState(() => load("streak",0));
-      const [weekly,    setWeekly]    = useState(() => load("weekly:"+weekLabel(),{}));
-      const [notifOn,   setNotifOn]   = useState(() => load("notif",false));
-      const [notifTime, setNotifTime] = useState(() => load("notifTime","07:00"));
-      const [tab,       setTab]       = useState("home");
-      const [modal,     setModal]     = useState(null);
-      const [form,      setForm]      = useState({});
-      const timerRef = useRef(null);
-      const t = THEMES[themeKey] || THEMES.indigo;
-      const isDark = themeKey==="dark";
+      const [darkMode, setDarkMode] = useState(false);
+      const [routines, setRoutines] = useState({ morning: [], afternoon: [], evening: [] });
+      const [newTask, setNewTask] = useState({ category: 'morning', text: '' });
+      const [editingTask, setEditingTask] = useState(null);
+      const [streak, setStreak] = useState(0);
 
-      useEffect(()=>save("theme",themeKey),[themeKey]);
-      useEffect(()=>save("cats",categories),[categories]);
-      useEffect(()=>save("tasks",tasks),[tasks]);
-      useEffect(()=>save("done:"+todayKey(),done),[done]);
-      useEffect(()=>save("streak",streak),[streak]);
-      useEffect(()=>save("weekly:"+weekLabel(),weekly),[weekly]);
-      useEffect(()=>save("notif",notifOn),[notifOn]);
-      useEffect(()=>save("notifTime",notifTime),[notifTime]);
+      useEffect(() => {
+        const saved = localStorage.getItem('routines');
+        const savedStreak = localStorage.getItem('streak');
+        const savedTheme = localStorage.getItem('darkMode');
+        const lastReset = localStorage.getItem('lastReset');
+        const today = new Date().toDateString();
 
-      useEffect(()=>{
-        const last = load("lastDay","");
-        const today = todayKey();
-        if(last && last !== today){
-          const allCatIds = categories.map(c=>c.id);
-          const totalY    = allCatIds.reduce((s,id)=>(tasks[id]||[]).length+s,0);
-          const doneY     = allCatIds.reduce((s,id)=>(tasks[id]||[]).filter(t=>done[t.id]).length+s,0);
-          if(totalY>0 && doneY===totalY) setStreak(p=>p+1);
-          else if(totalY>0) setStreak(0);
-          setDone({});
-        }
-        save("lastDay",today);
-      },[]);
+        if (savedTheme) setDarkMode(JSON.parse(savedTheme));
+        if (savedStreak) setStreak(parseInt(savedStreak));
 
-      useEffect(()=>{
-        const wk = weekLabel();
-        const dayIdx = new Date().getDay();
-        const allIds = categories.flatMap(c=>(tasks[c.id]||[])).map(t=>t.id);
-        const pct = allIds.length ? Math.round(allIds.filter(id=>done[id]).length/allIds.length*100) : 0;
-        setWeekly(prev=>{ const n={...prev}; n[dayIdx]=pct; save("weekly:"+wk,n); return n; });
-      },[done]);
-
-      useEffect(()=>{
-        if(timerRef.current) clearInterval(timerRef.current);
-        if(!notifOn) return;
-        timerRef.current = setInterval(()=>{
-          const now = new Date();
-          const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-          if(hhmm===notifTime && Notification.permission==="granted"){
-            new Notification("Daily Routine ✨",{ body:"Jangan lupa selesaikan rutinitas hari ini!", icon:"https://placehold.co/192x192/4F46E5/white?text=DR" });
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (lastReset !== today) {
+            const allDone = Object.values(parsed).every(cat => 
+              cat.length > 0 && cat.every(t => t.completed)
+            );
+            if (allDone) {
+              const newStreak = (parseInt(savedStreak) || 0) + 1;
+              setStreak(newStreak);
+              localStorage.setItem('streak', newStreak);
+            } else if (lastReset) {
+              setStreak(0);
+              localStorage.setItem('streak', 0);
+            }
+            const reset = {};
+            Object.keys(parsed).forEach(k => {
+              reset[k] = parsed[k].map(t => ({ ...t, completed: false }));
+            });
+            setRoutines(reset);
+            localStorage.setItem('lastReset', today);
+          } else {
+            setRoutines(parsed);
           }
-        },30000);
-        return ()=>clearInterval(timerRef.current);
-      },[notifOn,notifTime]);
-
-      const allTasks  = categories.flatMap(c=>(tasks[c.id]||[]));
-      const totalToday= allTasks.length;
-      const doneToday = allTasks.filter(t=>done[t.id]).length;
-      const pct       = totalToday ? Math.round(doneToday/totalToday*100) : 0;
-
-      const toggleDone = id => setDone(p=>({...p,[id]:!p[id]}));
-
-      const saveCategory = () => {
-        const { label, emoji, color, editId } = form;
-        if(!label || !label.trim()) return;
-        if(editId){
-          setCategories(p=>p.map(c=>c.id===editId?{...c,label,emoji,color}:c));
-        } else {
-          const newId = "cat_"+Date.now();
-          setCategories(p=>[...p,{id:newId,label,emoji:emoji||"✨",color:color||CATEGORY_COLORS[0]}]);
         }
-        setModal(null); setForm({});
+      }, []);
+
+      useEffect(() => {
+        localStorage.setItem('routines', JSON.stringify(routines));
+      }, [routines]);
+
+      useEffect(() => {
+        localStorage.setItem('darkMode', JSON.stringify(darkMode));
+      }, [darkMode]);
+
+      const addTask = () => {
+        if (!newTask.text.trim()) return;
+        setRoutines(prev => ({
+          ...prev,
+          [newTask.category]: [...prev[newTask.category], { id: Date.now(), text: newTask.text, completed: false }]
+        }));
+        setNewTask(prev => ({ ...prev, text: '' }));
       };
 
-      const deleteCategory = id => {
-        setCategories(p=>p.filter(c=>c.id!==id));
-        setTasks(p=>{ const n={...p}; delete n[id]; return n; });
-        setModal(null); setForm({});
+      const toggleTask = (cat, id) => {
+        setRoutines(prev => ({
+          ...prev,
+          [cat]: prev[cat].map(t => t.id === id ? { ...t, completed: !t.completed } : t)
+        }));
       };
 
-      const saveTask = () => {
-        const { catId, text, editId } = form;
-        if(!text || !text.trim() || !catId) return;
-        setTasks(p=>{
-          const list = p[catId]||[];
-          if(editId) return {...p,[catId]:list.map(t=>t.id===editId?{...t,text}:t)};
-          return {...p,[catId]:[...list,{id:"t"+Date.now(),text}]};
-        });
-        setModal(null); setForm({});
+      const deleteTask = (cat, id) => {
+        setRoutines(prev => ({ ...prev, [cat]: prev[cat].filter(t => t.id !== id) }));
       };
 
-      const deleteTask = (catId,taskId) => {
-        setTasks(p=>({...p,[catId]:(p[catId]||[]).filter(t=>t.id!==taskId)}));
-        setDone(p=>{const n={...p};delete n[taskId];return n;});
+      const saveEdit = () => {
+        if (!editingTask || !editingTask.newText.trim()) return;
+        setRoutines(prev => ({
+          ...prev,
+          [editingTask.category]: prev[editingTask.category].map(t =>
+            t.id === editingTask.task.id ? { ...t, text: editingTask.newText } : t
+          )
+        }));
+        setEditingTask(null);
       };
 
-      const requestNotif = async () => {
-        if(!("Notification" in window)){ alert("Browser ini tidak mendukung notifikasi."); return; }
-        if(Notification.permission!=="granted"){
-          const perm = await Notification.requestPermission();
-          if(perm!=="granted"){ alert("Izin notifikasi ditolak. Aktifkan di pengaturan browser."); return; }
-        }
-        setNotifOn(true); setModal(null);
+      const totalTasks = Object.values(routines).reduce((s, c) => s + c.length, 0);
+      const doneTasks = Object.values(routines).reduce((s, c) => s + c.filter(t => t.completed).length, 0);
+      const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+      const categories = {
+        morning: { label: 'Pagi', emoji: '🌅', gradient: 'linear-gradient(135deg, #f97316, #ec4899)' },
+        afternoon: { label: 'Siang', emoji: '☀️', gradient: 'linear-gradient(135deg, #facc15, #f97316)' },
+        evening: { label: 'Malam', emoji: '🌙', gradient: 'linear-gradient(135deg, #6366f1, #9333ea)' }
       };
 
-      const s = {
-        wrap:     { minHeight:"100vh", background:t.bg, color:isDark?"#f1f5f9":"#1e293b", fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", paddingBottom:80 },
-        card:     { background:t.card, borderRadius:20, padding:16, marginBottom:12, boxShadow:"0 2px 12px rgba(0,0,0,0.07)" },
-        input:    { background:isDark?"#334155":"#f1f5f9", color:isDark?"#f1f5f9":"#1e293b", border:"none", borderRadius:10, padding:"10px 14px", outline:"none", width:"100%", fontSize:15 },
-        btn:      (bg,color)=>({ background:bg, color:color||"#fff", border:"none", borderRadius:10, padding:"10px 18px", cursor:"pointer", fontWeight:600, fontSize:14 }),
-        navBtn:   (active)=>({ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"10px 0",
-                               color: active ? t.primary : isDark?"#64748b":"#94a3b8", fontWeight: active?700:400, fontSize:11 }),
-        pill:     (color)=>({ background:color+"22", color, borderRadius:999, padding:"2px 10px", fontSize:12, fontWeight:600 }),
-        modalWrap:{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:999, padding:16 },
-        modalBox: { background:t.card, borderRadius:20, padding:20, width:"100%", maxWidth:400, boxShadow:"0 8px 40px rgba(0,0,0,0.2)" },
-        subtext:  { color:isDark?"#94a3b8":"#64748b", fontSize:13 },
-      };
+      const dm = darkMode;
+      const bg = dm ? '#111827' : '#EEF2FF';
+      const card = dm ? '#1F2937' : '#ffffff';
+      const text = dm ? '#F3F4F6' : '#1F2937';
+      const subtext = dm ? '#9CA3AF' : '#6B7280';
+      const inputBg = dm ? '#374151' : '#F9FAFB';
 
       return (
-        <div style={s.wrap}>
-          <div style={{maxWidth:600,margin:"0 auto",padding:"16px 12px"}}>
+        <div style={{ minHeight: '100vh', background: bg, color: text, transition: 'all 0.3s', padding: '16px', paddingBottom: '40px' }}>
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
 
-            <div style={{...s.card, background:`linear-gradient(${t.grad})`, color:"#fff", marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div>
-                  <div style={{fontSize:22,fontWeight:800}}>Daily Routine ✨</div>
-                  <div style={{fontSize:13,opacity:0.85}}>{new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"})}</div>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setModal("notif")} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,padding:8,cursor:"pointer",color:"#fff",display:"flex"}}>
-                    <Bell on={notifOn}/>
-                  </button>
-                </div>
+            {/* Header Card */}
+            <div style={{ background: card, borderRadius: '20px', padding: '24px', marginBottom: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '800' }}>Daily Routine ✨</h1>
+                <button onClick={() => setDarkMode(!dm)} style={{ background: inputBg, border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: text, display: 'flex' }}>
+                  {dm ? <SunIcon /> : <MoonIcon />}
+                </button>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6,opacity:0.9}}>
-                    <span>Progress Hari Ini</span><strong>{pct}%</strong>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px', color: subtext }}>
+                    <span>Progress Hari Ini</span>
+                    <strong style={{ color: text }}>{progress}%</strong>
                   </div>
-                  <div style={{background:"rgba(255,255,255,0.3)",borderRadius:999,height:10,overflow:"hidden"}}>
-                    <div style={{width:pct+"%",height:"100%",background:"#fff",transition:"width 0.5s",borderRadius:999}}/>
+                  <div style={{ background: '#E5E7EB', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
+                    <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #34D399, #3B82F6)', transition: 'width 0.5s' }} />
                   </div>
                 </div>
-                <div style={{background:"rgba(255,255,255,0.2)",borderRadius:14,padding:"8px 14px",textAlign:"center",minWidth:60}}>
-                  <div style={{fontSize:11,opacity:0.85}}>Streak</div>
-                  <div style={{fontSize:22,fontWeight:800}}>🔥{streak}</div>
+                <div style={{ background: dm ? '#374151' : '#FFF7ED', borderRadius: '14px', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>🔥</span>
+                  <div>
+                    <div style={{ fontSize: '11px', color: subtext }}>Streak</div>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: '#F97316' }}>{streak}</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {tab==="home" && (
-              <>
-                {categories.map(cat=>{
-                  const catTasks = tasks[cat.id]||[];
-                  const catDone  = catTasks.filter(t=>done[t.id]).length;
-                  return (
-                    <div key={cat.id} style={s.card}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:12,marginBottom:10,background:cat.color+"18"}}>
-                        <span style={{fontSize:20}}>{cat.emoji}</span>
-                        <span style={{fontWeight:700,fontSize:15,color:cat.color,flex:1}}>{cat.label}</span>
-                        <span style={s.pill(cat.color)}>{catDone}/{catTasks.length}</span>
-                        <button onClick={()=>{setForm({catId:cat.id});setModal("addTask");}}
-                          style={{background:cat.color,color:"#fff",border:"none",borderRadius:8,padding:"4px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:600}}>
-                          <Plus/> Tambah
+            {/* Add Task */}
+            <div style={{ background: card, borderRadius: '20px', padding: '14px', marginBottom: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', display: 'flex', gap: '8px' }}>
+              <select
+                value={newTask.category}
+                onChange={e => setNewTask({ ...newTask, category: e.target.value })}
+                style={{ background: inputBg, color: text, border: 'none', borderRadius: '10px', padding: '10px', outline: 'none', cursor: 'pointer' }}
+              >
+                {Object.entries(categories).map(([k, v]) => (
+                  <option key={k} value={k}>{v.emoji} {v.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={newTask.text}
+                onChange={e => setNewTask({ ...newTask, text: e.target.value })}
+                onKeyPress={e => e.key === 'Enter' && addTask()}
+                placeholder="Tambah rutinitas baru..."
+                style={{ flex: 1, background: inputBg, color: text, border: 'none', borderRadius: '10px', padding: '10px 14px', outline: 'none', fontSize: '15px' }}
+              />
+              <button
+                onClick={addTask}
+                style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: 'white', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <PlusIcon />
+              </button>
+            </div>
+
+            {/* Categories */}
+            {Object.entries(categories).map(([cat, conf]) => (
+              <div key={cat} style={{ background: card, borderRadius: '20px', padding: '16px', marginBottom: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+                <div style={{ background: conf.gradient, borderRadius: '12px', padding: '10px 16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: 'white' }}>
+                  <span style={{ fontSize: '20px' }}>{conf.emoji}</span>
+                  <span style={{ fontWeight: '700', fontSize: '16px' }}>{conf.label}</span>
+                  <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.25)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px' }}>
+                    {routines[cat].filter(t => t.completed).length}/{routines[cat].length}
+                  </span>
+                </div>
+
+                {routines[cat].length === 0 ? (
+                  <p style={{ textAlign: 'center', color: subtext, fontSize: '14px', padding: '16px 0', margin: 0 }}>
+                    Belum ada rutinitas. Tambahkan di atas! 👆
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {routines[cat].map(task => (
+                      <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: inputBg, borderRadius: '12px', padding: '12px', opacity: task.completed ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                        <button onClick={() => toggleTask(cat, task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: task.completed ? '#10B981' : '#9CA3AF', padding: 0, display: 'flex', flexShrink: 0 }}>
+                          {task.completed ? <CheckCircleIcon /> : <CircleIcon />}
+                        </button>
+
+                        {editingTask?.task.id === task.id ? (
+                          <input
+                            autoFocus
+                            value={editingTask.newText}
+                            onChange={e => setEditingTask({ ...editingTask, newText: e.target.value })}
+                            onKeyPress={e => e.key === 'Enter' && saveEdit()}
+                            onBlur={saveEdit}
+                            style={{ flex: 1, background: card, color: text, border: '1px solid #6366F1', borderRadius: '8px', padding: '4px 8px', outline: 'none' }}
+                          />
+                        ) : (
+                          <span style={{ flex: 1, textDecoration: task.completed ? 'line-through' : 'none', fontSize: '15px' }}>
+                            {task.text}
+                          </span>
+                        )}
+
+                        <button onClick={() => setEditingTask({ category: cat, task, newText: task.text })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: subtext, padding: '4px', display: 'flex' }}>
+                          <EditIcon />
+                        </button>
+                        <button onClick={() => deleteTask(cat, task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: '4px', display: 'flex' }}>
+                          <TrashIcon />
                         </button>
                       </div>
-                      {catTasks.length===0 ? (
-                        <p style={{...s.subtext,textAlign:"center",padding:"12px 0",margin:0}}>Belum ada task. Tap "Tambah"! 👆</p>
-                      ):(
-                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                          {catTasks.map(task=>(
-                            <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,
-                              background:done[task.id]?(cat.color+"18"):(isDark?"#334155":"#f8fafc"),
-                              transition:"all 0.2s",border:done[task.id]?`1.5px solid ${cat.color}33`:"1.5px solid transparent"}}>
-                              <button onClick={()=>toggleDone(task.id)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",flexShrink:0,color:done[task.id]?cat.color:"#94a3b8"}}>
-                                {done[task.id]?<Check s={24} c={cat.color}/>:<Circle s={24}/>}
-                              </button>
-                              <span style={{flex:1,fontSize:15,textDecoration:done[task.id]?"line-through":"none",color:done[task.id]?(isDark?"#64748b":"#94a3b8"):"inherit",transition:"all 0.2s"}}>
-                                {task.text}
-                              </span>
-                              <button onClick={()=>{setForm({catId:cat.id,editId:task.id,text:task.text});setModal("editTask");}}
-                                style={{background:"none",border:"none",cursor:"pointer",color:isDark?"#64748b":"#94a3b8",padding:4,display:"flex"}}>
-                                <Edit/>
-                              </button>
-                              <button onClick={()=>deleteTask(cat.id,task.id)}
-                                style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",padding:4,display:"flex"}}>
-                                <Trash/>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {categories.length===0 && (
-                  <div style={{...s.card,textAlign:"center",padding:32}}>
-                    <div style={{fontSize:40,marginBottom:8}}>📋</div>
-                    <div style={{fontWeight:700,marginBottom:4}}>Belum ada kategori</div>
-                    <div style={s.subtext}>Buka tab "Kategori" untuk menambah!</div>
+                    ))}
                   </div>
                 )}
-              </>
-            )}
-
-            {tab==="cats" && (
-              <>
-                <button onClick={()=>{setForm({emoji:CATEGORY_EMOJIS[0],color:CATEGORY_COLORS[0]});setModal("addCat");}}
-                  style={{...s.btn(`linear-gradient(${t.grad})`),width:"100%",marginBottom:12,padding:14,fontSize:15}}>
-                  + Tambah Kategori Baru
-                </button>
-                {categories.map(cat=>(
-                  <div key={cat.id} style={{...s.card,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:44,height:44,borderRadius:12,background:cat.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
-                      {cat.emoji}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:15}}>{cat.label}</div>
-                      <div style={s.subtext}>{(tasks[cat.id]||[]).length} task</div>
-                    </div>
-                    <button onClick={()=>{setForm({editId:cat.id,label:cat.label,emoji:cat.emoji,color:cat.color});setModal("editCat");}}
-                      style={{background:cat.color+"22",color:cat.color,border:"none",borderRadius:10,padding:"8px 12px",cursor:"pointer",display:"flex"}}>
-                      <Edit/>
-                    </button>
-                  </div>
-                ))}
-              </>
-            )}
-
-            {tab==="stats" && (
-              <>
-                <div style={s.card}>
-                  <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>📊 Statistik Minggu Ini</div>
-                  <div style={{...s.subtext,marginBottom:16}}>Persentase penyelesaian per hari</div>
-                  <div style={{display:"flex",alignItems:"flex-end",gap:6,height:120}}>
-                    {DAY_NAMES.map((d,i)=>{
-                      const v = weekly[i]||0;
-                      const isToday = i===new Date().getDay();
-                      return (
-                        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                          <div style={{fontSize:11,fontWeight:700,color:t.primary}}>{v>0?v+"%":""}</div>
-                          <div style={{width:"100%",borderRadius:"6px 6px 0 0",
-                            background: v>0 ? `linear-gradient(${t.grad})` : (isDark?"#334155":"#e2e8f0"),
-                            height: Math.max(v*1,4)+"%",minHeight:4,
-                            border: isToday?`2px solid ${t.primary}`:"2px solid transparent",
-                            boxSizing:"border-box",transition:"height 0.5s"}}/>
-                          <div style={{fontSize:11,color:isToday?t.primary:(isDark?"#64748b":"#94a3b8"),fontWeight:isToday?700:400}}>{d}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div style={s.card}>
-                  <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>📋 Progress Per Kategori</div>
-                  {categories.map(cat=>{
-                    const catTasks = tasks[cat.id]||[];
-                    const catDone  = catTasks.filter(t=>done[t.id]).length;
-                    const catPct   = catTasks.length ? Math.round(catDone/catTasks.length*100) : 0;
-                    return (
-                      <div key={cat.id} style={{marginBottom:14}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:14}}>
-                          <span>{cat.emoji} <strong>{cat.label}</strong></span>
-                          <span style={s.pill(cat.color)}>{catDone}/{catTasks.length}</span>
-                        </div>
-                        <div style={{background:isDark?"#334155":"#e2e8f0",borderRadius:999,height:8,overflow:"hidden"}}>
-                          <div style={{width:catPct+"%",height:"100%",background:cat.color,transition:"width 0.5s",borderRadius:999}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  {[
-                    {label:"Total Task",value:totalToday,icon:"📋"},
-                    {label:"Selesai Hari Ini",value:doneToday,icon:"✅"},
-                    {label:"Streak Saat Ini",value:streak+"🔥",icon:""},
-                    {label:"Progress",value:pct+"%",icon:"📈"},
-                  ].map(c=>(
-                    <div key={c.label} style={{...s.card,textAlign:"center",padding:16,marginBottom:0}}>
-                      <div style={{fontSize:28}}>{c.icon}</div>
-                      <div style={{fontSize:24,fontWeight:800,color:t.primary}}>{c.value}</div>
-                      <div style={s.subtext}>{c.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {tab==="theme" && (
-              <>
-                <div style={{...s.card,marginBottom:12}}>
-                  <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>🎨 Pilih Tema Warna</div>
-                  <div style={s.subtext}>Tap tema untuk menggantinya sekarang</div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  {Object.entries(THEMES).map(([key,th])=>(
-                    <button key={key} onClick={()=>setThemeKey(key)}
-                      style={{background:`linear-gradient(${th.grad})`,border: themeKey===key?"3px solid #fff":"3px solid transparent",
-                        borderRadius:16,padding:20,cursor:"pointer",color:"#fff",textAlign:"left",
-                        boxShadow: themeKey===key?"0 0 0 3px "+th.primary:"none",transition:"all 0.2s"}}>
-                      <div style={{fontSize:20,marginBottom:4}}>{key==="dark"?"🌑":"🎨"}</div>
-                      <div style={{fontWeight:700,fontSize:15}}>{th.name}</div>
-                      {themeKey===key && <div style={{fontSize:12,opacity:0.9,marginTop:2}}>✓ Aktif</div>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-          </div>
-
-          <div style={{position:"fixed",bottom:0,left:0,right:0,background:t.card,borderTop:`1px solid ${isDark?"#1e293b":"#e2e8f0"}`,
-            display:"flex",zIndex:100,boxShadow:"0 -2px 12px rgba(0,0,0,0.06)"}}>
-            {[["home","Home",<Home/>],["cats","Kategori",<Tag/>],["stats","Statistik",<Stats/>],["theme","Tema",<Palette/>]].map(([id,label,icon])=>(
-              <button key={id} onClick={()=>setTab(id)} style={s.navBtn(tab===id)}>
-                {icon}<span>{label}</span>
-              </button>
-            ))}
-          </div>
-
-          {modal && (
-            <div style={s.modalWrap} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setForm({});}}}>
-              <div style={s.modalBox}>
-
-                {(modal==="addTask"||modal==="editTask") && (
-                  <>
-                    <div style={{fontWeight:700,fontSize:17,marginBottom:16}}>{modal==="addTask"?"➕ Tambah Task":"✏️ Edit Task"}</div>
-                    <input style={{...s.input,marginBottom:12}} placeholder="Nama task..." value={form.text||""}
-                      onChange={e=>setForm(p=>({...p,text:e.target.value}))}
-                      onKeyPress={e=>e.key==="Enter"&&saveTask()} autoFocus/>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>{setModal(null);setForm({});}} style={{...s.btn(isDark?"#334155":"#e2e8f0",isDark?"#f1f5f9":"#1e293b"),flex:1}}>Batal</button>
-                      <button onClick={saveTask} style={{...s.btn(`linear-gradient(${t.grad})`),flex:1}}>Simpan</button>
-                    </div>
-                    {modal==="editTask" && (
-                      <button onClick={()=>{deleteTask(form.catId,form.editId);setModal(null);setForm({});}}
-                        style={{...s.btn("#fee2e2","#ef4444"),width:"100%",marginTop:8}}>🗑️ Hapus Task</button>
-                    )}
-                  </>
-                )}
-
-                {(modal==="addCat"||modal==="editCat") && (
-                  <>
-                    <div style={{fontWeight:700,fontSize:17,marginBottom:16}}>{modal==="addCat"?"➕ Kategori Baru":"✏️ Edit Kategori"}</div>
-                    <input style={{...s.input,marginBottom:10}} placeholder="Nama kategori..." value={form.label||""}
-                      onChange={e=>setForm(p=>({...p,label:e.target.value}))} autoFocus/>
-                    <div style={{marginBottom:10}}>
-                      <div style={{...s.subtext,marginBottom:6}}>Pilih Emoji:</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                        {CATEGORY_EMOJIS.map(em=>(
-                          <button key={em} onClick={()=>setForm(p=>({...p,emoji:em}))}
-                            style={{fontSize:22,background:form.emoji===em?t.primary+"22":"transparent",border:`2px solid ${form.emoji===em?t.primary:"transparent"}`,
-                              borderRadius:8,padding:"4px 8px",cursor:"pointer"}}>
-                            {em}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{marginBottom:14}}>
-                      <div style={{...s.subtext,marginBottom:6}}>Pilih Warna:</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                        {CATEGORY_COLORS.map(c=>(
-                          <button key={c} onClick={()=>setForm(p=>({...p,color:c}))}
-                            style={{width:28,height:28,borderRadius:"50%",background:c,border:`3px solid ${form.color===c?"#fff":"transparent"}`,
-                              boxShadow:form.color===c?`0 0 0 2px ${c}`:"none",cursor:"pointer"}}>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>{setModal(null);setForm({});}} style={{...s.btn(isDark?"#334155":"#e2e8f0",isDark?"#f1f5f9":"#1e293b"),flex:1}}>Batal</button>
-                      <button onClick={saveCategory} style={{...s.btn(`linear-gradient(${t.grad})`),flex:1}}>Simpan</button>
-                    </div>
-                    {modal==="editCat" && (
-                      <button onClick={()=>deleteCategory(form.editId)}
-                        style={{...s.btn("#fee2e2","#ef4444"),width:"100%",marginTop:8}}>🗑️ Hapus Kategori</button>
-                    )}
-                  </>
-                )}
-
-                {modal==="notif" && (
-                  <>
-                    <div style={{fontWeight:700,fontSize:17,marginBottom:4}}>🔔 Pengaturan Reminder</div>
-                    <div style={{...s.subtext,marginBottom:16}}>Notifikasi harian untuk mengingatkan rutinitas kamu</div>
-                    <div style={{marginBottom:12}}>
-                      <div style={{...s.subtext,marginBottom:6}}>Jam Reminder:</div>
-                      <input type="time" value={notifTime} onChange={e=>setNotifTime(e.target.value)}
-                        style={{...s.input,marginBottom:0}}/>
-                    </div>
-                    <div style={{display:"flex",gap:8,marginBottom:8}}>
-                      <button onClick={()=>{setModal(null);setForm({});}} style={{...s.btn(isDark?"#334155":"#e2e8f0",isDark?"#f1f5f9":"#1e293b"),flex:1}}>Tutup</button>
-                      {notifOn
-                        ? <button onClick={()=>{setNotifOn(false);setModal(null);}} style={{...s.btn("#fee2e2","#ef4444"),flex:1}}>Matikan</button>
-                        : <button onClick={requestNotif} style={{...s.btn(`linear-gradient(${t.grad})`),flex:1}}>Aktifkan</button>
-                      }
-                    </div>
-                    <div style={{...s.subtext,fontSize:12,textAlign:"center"}}>
-                      {notifOn ? `✅ Aktif — Reminder jam ${notifTime}` : "❌ Nonaktif"}
-                    </div>
-                  </>
-                )}
-
               </div>
+            ))}
+
+            {/* Footer */}
+            <div style={{ background: card, borderRadius: '20px', padding: '16px', textAlign: 'center', color: subtext, fontSize: '13px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+              <p style={{ margin: '0 0 4px' }}>💡 Checklist reset otomatis setiap hari</p>
+              <p style={{ margin: 0 }}>Selesaikan semua task untuk naikkan streak! 🔥</p>
             </div>
-          )}
+          </div>
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 
   <script>
-    // Service worker dinonaktifkan sementara + bersihkan SW lama yang mungkin masih nyangkut
+    // Register Service Worker untuk offline support
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(
+          reg => console.log('SW registered:', reg.scope),
+          err => console.log('SW failed:', err)
+        );
       });
     }
   </script>
